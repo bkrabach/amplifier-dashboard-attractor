@@ -95,11 +95,24 @@ export async function layoutPipeline(
   const elkGraph: ElkNode = {
     id: "root",
     layoutOptions: {
+      // Layered (Sugiyama) algorithm — best for DAGs
       "elk.algorithm": "layered",
-      "elk.direction": "RIGHT",
-      "elk.spacing.nodeNode": "40",
-      "elk.layered.spacing.nodeNodeBetweenLayers": "60",
-      "elk.padding": "[top=20,left=20,bottom=20,right=20]",
+      // Vertical top-to-bottom flow (pipeline reads naturally downward)
+      "elk.direction": "DOWN",
+      // Spacing between nodes in the same layer
+      "elk.spacing.nodeNode": "50",
+      // Spacing between layers (vertical distance between pipeline stages)
+      "elk.layered.spacing.nodeNodeBetweenLayers": "80",
+      // Edge routing: ORTHOGONAL routes edges around nodes with right-angle bends
+      // (avoids edges going behind nodes on branches and loops)
+      "elk.edgeRouting": "ORTHOGONAL",
+      // Give edges more room to route around nodes
+      "elk.spacing.edgeNode": "30",
+      "elk.spacing.edgeEdge": "20",
+      // Better handling of back-edges (loops/retries) — route them wider
+      "elk.layered.feedbackEdges": "true",
+      // Padding around the entire graph
+      "elk.padding": "[top=30,left=30,bottom=30,right=30]",
     },
     children: dotNodes.map((id) => ({
       id,

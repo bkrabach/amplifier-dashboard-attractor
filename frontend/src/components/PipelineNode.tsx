@@ -67,7 +67,7 @@ export default function PipelineNode({ data }: NodeProps) {
 
   return (
     <>
-      <Handle type="target" position={Position.Left} style={{ visibility: "hidden" }} />
+      <Handle type="target" position={Position.Top} style={{ visibility: "hidden" }} />
       <div
         className={`nopan nodrag ${animClass}`}
         style={{
@@ -113,7 +113,7 @@ export default function PipelineNode({ data }: NodeProps) {
           )}
         </div>
       </div>
-      <Handle type="source" position={Position.Right} style={{ visibility: "hidden" }} />
+      <Handle type="source" position={Position.Bottom} style={{ visibility: "hidden" }} />
     </>
   );
 }
