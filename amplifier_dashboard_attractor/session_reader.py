@@ -89,13 +89,24 @@ def _iter_relevant_events(path: Path) -> Generator[dict[str, Any], None, None]:
 def _has_pipeline_events(path: Path) -> bool:
     """Quick scan: does this events.jsonl contain any pipeline: events?
 
-    Only reads the first ``_PEEK_BYTES`` of the file.  pipeline:start is
-    always emitted near the top, so reading the whole file is unnecessary.
+    Checks both the head and tail of the file.  Pipeline events may appear
+    deep in long-running session logs (e.g., 500MB+ into a 1GB file) when
+    pipeline runs happen later in the session.
     """
     try:
-        with open(path, encoding="utf-8") as fh:
+        size = path.stat().st_size
+        with open(path, "rb") as fh:
+            # Check head
             head = fh.read(_PEEK_BYTES)
-            return _PIPELINE_PREFIX in head
+            if _PIPELINE_PREFIX.encode() in head:
+                return True
+            # Check tail (pipeline events from recent runs are near the end)
+            if size > _PEEK_BYTES * 2:
+                fh.seek(max(0, size - _PEEK_BYTES))
+                tail = fh.read(_PEEK_BYTES)
+                if _PIPELINE_PREFIX.encode() in tail:
+                    return True
+        return False
     except OSError:
         return False
 
