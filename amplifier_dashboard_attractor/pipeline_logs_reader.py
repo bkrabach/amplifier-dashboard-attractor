@@ -165,7 +165,7 @@ def _build_pipeline_state(
 
     return {
         "pipeline_id": manifest.get("graph_name", logs_dir.name),
-        "dot_source": "",  # DOT source is in pipeline config, not logs
+        "dot_source": _read_text(logs_dir / "graph.dot") or "",
         "goal": manifest.get(
             "goal", checkpoint.get("context", {}).get("graph.goal", "")
         ),
