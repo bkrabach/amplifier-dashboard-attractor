@@ -101,17 +101,51 @@ code, pre, .mono {
   border-radius: 4px;
 }
 
-/* Breathing pulse animation for running nodes */
+/* ── Pipeline node state animations ── */
+
+/* Breathing glow for running nodes (loops continuously) */
 @keyframes breathe {
-  0%, 100% { box-shadow: 0 0 0 0 var(--glow-running); }
-  50% { box-shadow: 0 0 12px 4px var(--glow-running); }
+  0%, 100% { box-shadow: 0 0 8px var(--glow-running); }
+  50% { box-shadow: 0 0 24px var(--glow-running); }
 }
 
-/* Shake animation for failed nodes */
+/* Shake for failed nodes (plays once on transition to failed) */
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-3px); }
-  40% { transform: translateX(3px); }
-  60% { transform: translateX(-2px); }
-  80% { transform: translateX(2px); }
+  20%, 60% { transform: translateX(-3px); }
+  40%, 80% { transform: translateX(3px); }
+}
+
+/* Brief flash for success (plays once on transition to success) */
+@keyframes success-flash {
+  0% { background: var(--surface-raised); }
+  50% { background: hsla(145, 45%, 55%, 0.15); }
+  100% { background: var(--surface-raised); }
+}
+
+/* CSS classes applied by PipelineNode based on state */
+.node--running {
+  animation: breathe var(--pulse-duration) ease-in-out infinite;
+}
+
+.node--failed {
+  animation: shake 0.4s ease-in-out 1;
+}
+
+.node--success {
+  animation: success-flash 0.6s ease-in-out 1;
+}
+
+/* Reduced motion: respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  .node--running {
+    animation: none;
+    box-shadow: 0 0 16px var(--glow-running);
+  }
+  .node--failed {
+    animation: none;
+  }
+  .node--success {
+    animation: none;
+  }
 }

@@ -2,7 +2,8 @@
  * Custom React Flow node for pipeline graph visualization.
  *
  * Displays: node label, duration, and state via CSS class.
- * State colors, borders, and animations are driven by CSS variables.
+ * State colors, borders, and animations are driven by CSS variables
+ * and CSS classes defined in theme.css.
  *
  * Design reference (from design doc):
  *   +----------------------+
@@ -15,41 +16,42 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { PipelineNodeData } from "../lib/dotLayout";
 import type { NodeState } from "../lib/types";
 
+/** Static style properties per state (colors and border style). */
 const STATE_STYLES: Record<
   NodeState,
-  { bg: string; border: string; borderStyle: string; animation?: string }
+  { border: string; borderStyle: string }
 > = {
   pending: {
-    bg: "var(--surface-raised)",
     border: "var(--state-pending)",
     borderStyle: "dashed",
   },
   running: {
-    bg: "var(--surface-raised)",
     border: "var(--state-running)",
     borderStyle: "solid",
-    animation: "breathe var(--pulse-duration) ease-in-out infinite",
   },
   success: {
-    bg: "var(--surface-raised)",
     border: "var(--state-success)",
     borderStyle: "solid",
   },
   failed: {
-    bg: "var(--surface-raised)",
     border: "var(--state-failed)",
     borderStyle: "solid",
   },
   retrying: {
-    bg: "var(--surface-raised)",
     border: "var(--state-retrying)",
     borderStyle: "dashed",
   },
   skipped: {
-    bg: "var(--surface-raised)",
     border: "var(--state-skipped)",
     borderStyle: "dotted",
   },
+};
+
+/** Map node state to CSS animation class from theme.css. */
+const STATE_CSS_CLASS: Partial<Record<NodeState, string>> = {
+  running: "node--running",
+  failed: "node--failed",
+  success: "node--success",
 };
 
 function formatDuration(ms: number): string {
@@ -61,19 +63,19 @@ function formatDuration(ms: number): string {
 export default function PipelineNode({ data }: NodeProps) {
   const nodeData = data as unknown as PipelineNodeData;
   const style = STATE_STYLES[nodeData.state] ?? STATE_STYLES.pending;
+  const animClass = STATE_CSS_CLASS[nodeData.state] ?? "";
 
   return (
     <>
       <Handle type="target" position={Position.Left} style={{ visibility: "hidden" }} />
       <div
-        className="nopan nodrag"
+        className={`nopan nodrag ${animClass}`}
         style={{
           minWidth: "var(--node-min-width)",
-          background: style.bg,
+          background: "var(--surface-raised)",
           border: `2px ${style.borderStyle} ${style.border}`,
           borderRadius: "var(--node-border-radius)",
           padding: "var(--space-sm) var(--space-md)",
-          animation: style.animation,
           cursor: "pointer",
           transition: "border-color var(--transition-normal), background var(--transition-normal)",
         }}
