@@ -160,19 +160,31 @@ export async function layoutPipeline(
     }
   );
 
+  // Build a lookup from edge ID to ELK's computed edge geometry.
+  // ELK populates edge.sections with startPoint, bendPoints, and endPoint
+  // after layout — this is the proper routed path that avoids node overlaps.
+  const elkEdgeMap = new Map<string, (typeof layout.edges extends (infer E)[] | undefined ? E : never)>();
+  for (const elkEdge of layout.edges ?? []) {
+    elkEdgeMap.set(elkEdge.id, elkEdge);
+  }
+
   const edges: Edge[] = dotEdges.map((e, i) => {
     // Determine edge visual state based on execution path
     const sourceIdx = pipelineState.execution_path.indexOf(e.source);
     const targetIdx = pipelineState.execution_path.indexOf(e.target);
     const isTraversed = sourceIdx >= 0 && targetIdx >= 0 && targetIdx > sourceIdx;
 
+    const edgeId = `e${i}-${e.source}-${e.target}`;
+    const elkEdge = elkEdgeMap.get(edgeId);
+    const elkSections = elkEdge?.sections ?? [];
+
     return {
-      id: `e${i}-${e.source}-${e.target}`,
+      id: edgeId,
       source: e.source,
       target: e.target,
       type: "pipelineEdge",
       label: e.label || undefined,
-      data: { traversed: isTraversed },
+      data: { traversed: isTraversed, elkSections },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: isTraversed ? "var(--text-secondary)" : "var(--text-tertiary)",
