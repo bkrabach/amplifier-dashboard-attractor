@@ -7,6 +7,7 @@ Supports a --mock flag for development without a live CXDB instance.
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import uvicorn
@@ -80,7 +81,17 @@ def main():
     )
     args = parser.parse_args()
 
-    app = create_app(mock=args.mock, cxdb_url=args.cxdb_url)
+    # CLI flags take precedence; environment variables are fallbacks
+    mock = args.mock or os.environ.get("DASHBOARD_MOCK", "").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    cxdb_url = args.cxdb_url
+    if cxdb_url == "http://localhost:8080":  # still at default — check env
+        cxdb_url = os.environ.get("CXDB_URL", cxdb_url)
+
+    app = create_app(mock=mock, cxdb_url=cxdb_url)
     uvicorn.run(app, host=args.host, port=args.port)
 
 
