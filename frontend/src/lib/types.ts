@@ -73,7 +73,7 @@ export interface PipelineRunState {
 }
 
 export interface PipelineFleetItem {
-  context_id: number;
+  context_id: string;
   pipeline_id: string;
   status: string;
   nodes_completed: number;

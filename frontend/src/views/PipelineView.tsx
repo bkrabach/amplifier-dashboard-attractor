@@ -51,7 +51,7 @@ export default function PipelineView() {
 
     async function load() {
       try {
-        const pipelineState = await getPipeline(Number(contextId));
+        const pipelineState = await getPipeline(contextId!);
         setState(pipelineState);
 
         const layout = await layoutPipeline(pipelineState);

@@ -22,13 +22,13 @@ export async function getPipelines(): Promise<PipelineFleetItem[]> {
 }
 
 export async function getPipeline(
-  contextId: number
+  contextId: string
 ): Promise<PipelineRunState> {
   return fetchJSON<PipelineRunState>(`/pipelines/${contextId}`);
 }
 
 export async function getNode(
-  contextId: number,
+  contextId: string,
   nodeId: string
 ): Promise<NodeDetail> {
   return fetchJSON<NodeDetail>(`/pipelines/${contextId}/nodes/${nodeId}`);
