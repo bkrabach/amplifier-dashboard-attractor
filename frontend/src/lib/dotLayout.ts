@@ -68,10 +68,11 @@ export async function layoutPipeline(
 
     for (const edge of dotGraph.edges) {
       const targets = edge.targets;
-      // ts-graphviz edges have targets array: [from, to]
-      if (targets.length >= 2) {
-        const fromId = extractNodeId(targets[0]);
-        const toId = extractNodeId(targets[1]);
+      // ts-graphviz chain edges like "a -> b -> c" have targets [a, b, c].
+      // Iterate consecutive pairs to extract all edges in the chain.
+      for (let i = 0; i < targets.length - 1; i++) {
+        const fromId = extractNodeId(targets[i]);
+        const toId = extractNodeId(targets[i + 1]);
         dotEdges.push({
           source: fromId,
           target: toId,
