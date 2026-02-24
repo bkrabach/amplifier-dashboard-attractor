@@ -22,6 +22,7 @@ export default function PipelineEdge({
   targetPosition,
   label,
   data,
+  markerEnd,
 }: EdgeProps) {
   const traversed = (data as Record<string, unknown>)?.traversed === true;
 
@@ -39,6 +40,7 @@ export default function PipelineEdge({
       <BaseEdge
         id={id}
         path={edgePath}
+        markerEnd={markerEnd}
         style={{
           stroke: traversed ? "var(--text-secondary)" : "var(--text-tertiary)",
           strokeWidth: traversed ? 2 : 1,

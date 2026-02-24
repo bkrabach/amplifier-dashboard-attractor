@@ -66,6 +66,7 @@ export default function PipelineNode({ data }: NodeProps) {
     <>
       <Handle type="target" position={Position.Left} style={{ visibility: "hidden" }} />
       <div
+        className="nopan nodrag"
         style={{
           minWidth: "var(--node-min-width)",
           background: style.bg,
@@ -73,6 +74,7 @@ export default function PipelineNode({ data }: NodeProps) {
           borderRadius: "var(--node-border-radius)",
           padding: "var(--space-sm) var(--space-md)",
           animation: style.animation,
+          cursor: "pointer",
           transition: "border-color var(--transition-normal), background var(--transition-normal)",
         }}
       >

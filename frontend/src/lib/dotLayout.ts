@@ -11,7 +11,7 @@
 
 import ELK, { type ElkNode, type ElkExtendedEdge } from "elkjs/lib/elk.bundled.js";
 import { fromDot } from "ts-graphviz";
-import type { Node, Edge } from "@xyflow/react";
+import { MarkerType, type Node, type Edge } from "@xyflow/react";
 import type { NodeInfo, PipelineRunState } from "./types";
 import { getNodeState, type NodeState } from "./types";
 
@@ -160,6 +160,10 @@ export async function layoutPipeline(
       type: "pipelineEdge",
       label: e.label || undefined,
       data: { traversed: isTraversed },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: isTraversed ? "var(--text-secondary)" : "var(--text-tertiary)",
+      },
     };
   });
 
