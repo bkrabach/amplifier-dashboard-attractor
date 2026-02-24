@@ -1,0 +1,1 @@
+"""FastAPI server — placeholder, implemented in Task 2."""

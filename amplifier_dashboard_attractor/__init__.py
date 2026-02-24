@@ -1,0 +1,1 @@
+"""Attractor Pipeline Dashboard — monitors pipeline execution via CXDB."""

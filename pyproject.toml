@@ -1,0 +1,39 @@
+[project]
+name = "amplifier-dashboard-attractor"
+version = "0.1.0"
+description = "Pipeline monitoring dashboard for Attractor — visualizes pipeline execution graphs via CXDB"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Microsoft MADE:Explorations Team" },
+]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "httpx>=0.24",
+]
+
+[project.scripts]
+dashboard = "amplifier_dashboard_attractor.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["amplifier_dashboard_attractor"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.24",
+]
