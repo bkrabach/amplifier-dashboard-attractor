@@ -3,12 +3,14 @@
  * Becomes an overlay drawer below 1280px viewport (deferred to v1.1).
  */
 
+import { Link } from "react-router-dom";
 import type { NodeInfo, NodeRun } from "../lib/types";
 
 interface DetailPanelProps {
   nodeId: string | null;
   nodeInfo: NodeInfo | null;
   runs: NodeRun[];
+  contextId?: string;
 }
 
 function formatDuration(ms: number): string {
@@ -17,7 +19,7 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-export default function DetailPanel({ nodeId, nodeInfo, runs }: DetailPanelProps) {
+export default function DetailPanel({ nodeId, nodeInfo, runs, contextId }: DetailPanelProps) {
   if (!nodeId || !nodeInfo) {
     return (
       <div
@@ -79,6 +81,22 @@ export default function DetailPanel({ nodeId, nodeInfo, runs }: DetailPanelProps
           </>
         )}
       </div>
+
+      {/* Link to full node view */}
+      {contextId && (
+        <Link
+          to={`/pipelines/${contextId}/nodes/${nodeId}`}
+          style={{
+            display: "inline-block",
+            marginBottom: "var(--space-lg)",
+            fontSize: "0.8rem",
+            color: "var(--state-running)",
+            textDecoration: "none",
+          }}
+        >
+          View full details &rarr;
+        </Link>
+      )}
 
       {/* Run history */}
       <h3

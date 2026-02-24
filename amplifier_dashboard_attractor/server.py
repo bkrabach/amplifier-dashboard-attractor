@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from amplifier_dashboard_attractor.routes.pipelines import router as pipelines_router
+from amplifier_dashboard_attractor.routes.ws import router as ws_router
 
 
 def create_app(
@@ -67,6 +68,7 @@ def create_app(
 
     # Register route modules
     app.include_router(pipelines_router)
+    app.include_router(ws_router)
 
     # Initialize data source
     if pipeline_logs_dir:

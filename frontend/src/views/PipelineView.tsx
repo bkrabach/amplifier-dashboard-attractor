@@ -5,12 +5,13 @@
  *   Top: MetricsBar (48px)
  *   Main: Graph (flexible) + DetailPanel (360px)
  *
- * Fetches pipeline state, lays out with ELK, renders with React Flow.
- * Click a node to populate the detail panel.
+ * Fetches pipeline state via REST, then subscribes to WebSocket for live
+ * updates.  Layout is computed once (DOT topology is stable); subsequent
+ * WebSocket frames only update node data (state, timing) for CSS transitions.
  */
 
 import { useParams, Link } from "react-router-dom";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -23,9 +24,10 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { getPipeline } from "../lib/api";
-import { layoutPipeline } from "../lib/dotLayout";
+import { layoutPipeline, updateNodeData } from "../lib/dotLayout";
 import type { PipelineNodeData } from "../lib/dotLayout";
 import type { PipelineRunState, NodeInfo, NodeRun } from "../lib/types";
+import { useWebSocket } from "../hooks/useWebSocket";
 import PipelineNode from "../components/PipelineNode";
 import PipelineEdge from "../components/PipelineEdge";
 import MetricsBar from "../components/MetricsBar";
@@ -41,11 +43,15 @@ export default function PipelineView() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const layoutDone = useRef(false);
 
   // Selected node for detail panel
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // Fetch pipeline state and compute layout
+  // WebSocket for live updates
+  const { state: wsState, connected: wsConnected } = useWebSocket(contextId);
+
+  // Initial REST fetch and layout
   useEffect(() => {
     if (!contextId) return;
 
@@ -57,6 +63,7 @@ export default function PipelineView() {
         const layout = await layoutPipeline(pipelineState);
         setNodes(layout.nodes);
         setEdges(layout.edges);
+        layoutDone.current = true;
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load pipeline");
@@ -67,6 +74,15 @@ export default function PipelineView() {
 
     load();
   }, [contextId]);
+
+  // Apply WebSocket state updates without re-computing layout
+  useEffect(() => {
+    if (!wsState || !layoutDone.current) return;
+    setState(wsState);
+
+    // Update node data in-place (state, timing, tokens) — no layout recalc
+    setNodes((prev) => updateNodeData(prev, wsState));
+  }, [wsState]);
 
   // Handle node click
   const onNodeClick = useCallback(
@@ -118,6 +134,9 @@ export default function PipelineView() {
             padding: "var(--space-xs) var(--space-lg)",
             fontSize: "0.8rem",
             color: "var(--text-tertiary)",
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-sm)",
           }}
         >
           <Link
@@ -129,6 +148,30 @@ export default function PipelineView() {
           {" / "}
           <span style={{ fontFamily: "var(--font-mono)" }}>
             {state.pipeline_id}
+          </span>
+
+          {/* Live indicator */}
+          <span
+            style={{
+              marginLeft: "auto",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              fontSize: "0.75rem",
+              color: wsConnected ? "var(--state-running)" : "var(--text-tertiary)",
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: wsConnected ? "var(--state-running)" : "var(--text-tertiary)",
+                display: "inline-block",
+                animation: wsConnected ? "breathe var(--pulse-duration) ease-in-out infinite" : "none",
+              }}
+            />
+            {wsConnected ? "Live" : "Offline"}
           </span>
         </div>
         <MetricsBar state={state} />
@@ -157,6 +200,7 @@ export default function PipelineView() {
           nodeId={selectedNodeId}
           nodeInfo={selectedNodeInfo}
           runs={selectedNodeRuns}
+          contextId={contextId ?? ""}
         />
       </div>
     </div>

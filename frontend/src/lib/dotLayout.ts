@@ -169,3 +169,33 @@ export async function layoutPipeline(
 
   return { nodes, edges };
 }
+
+/**
+ * Update node data in-place from a new PipelineRunState without re-computing
+ * the ELK layout.  Only state, timing, and token fields change — positions
+ * stay fixed so React Flow animates CSS transitions smoothly.
+ */
+export function updateNodeData(
+  existingNodes: Node<PipelineNodeData>[],
+  newState: PipelineRunState
+): Node<PipelineNodeData>[] {
+  return existingNodes.map((node) => {
+    const nodeId = node.id;
+    const state = getNodeState(nodeId, newState);
+    const runs = newState.node_runs[nodeId] ?? [];
+    const lastRun = runs.length > 0 ? runs[runs.length - 1] : null;
+    const nodeInfo = newState.nodes[nodeId] ?? node.data.nodeInfo;
+
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        nodeInfo,
+        state,
+        durationMs: lastRun?.duration_ms ?? 0,
+        tokensIn: lastRun?.tokens_in ?? 0,
+        tokensOut: lastRun?.tokens_out ?? 0,
+      },
+    };
+  });
+}
