@@ -1,0 +1,117 @@
+/*
+ * Attractor Dashboard — Dark Theme
+ *
+ * Palette from the design doc (art director approved):
+ * - Cool hues (teal, blue-gray) for normal operation
+ * - Warm hues (coral, amber) for attention-requiring states
+ * - Saturation 45-70% to prevent eye strain
+ * - Triple-channel encoding: color + border + motion
+ */
+
+:root {
+  /* Surface system */
+  --surface-base: #0f1117;
+  --surface-raised: #161922;
+  --surface-overlay: #1c1f2b;
+  --surface-hover: #252836;
+
+  /* Text hierarchy (alpha-based white) */
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.64);
+  --text-tertiary: rgba(255, 255, 255, 0.40);
+
+  /* Border */
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Pipeline state colors (from design doc HSL values) */
+  --state-pending: hsl(220, 10%, 45%);
+  --state-running: hsl(175, 65%, 55%);
+  --state-success: hsl(145, 45%, 55%);
+  --state-failed: hsl(0, 55%, 62%);
+  --state-retrying: hsl(35, 70%, 60%);
+  --state-skipped: hsl(220, 8%, 38%);
+
+  /* State glow (for running node) */
+  --glow-running: hsla(175, 65%, 55%, 0.3);
+  --glow-failed: hsla(0, 55%, 62%, 0.2);
+
+  /* Typography */
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Sizes */
+  --metrics-bar-height: 48px;
+  --detail-panel-width: 360px;
+  --node-min-width: 160px;
+  --node-border-radius: 8px;
+
+  /* Motion */
+  --transition-fast: 150ms ease;
+  --transition-normal: 300ms ease;
+  --pulse-duration: 2s;
+}
+
+/* Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+code, pre, .mono {
+  font-family: var(--font-mono);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+
+/* Breathing pulse animation for running nodes */
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 0 0 var(--glow-running); }
+  50% { box-shadow: 0 0 12px 4px var(--glow-running); }
+}
+
+/* Shake animation for failed nodes */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
