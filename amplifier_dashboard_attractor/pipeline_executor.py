@@ -77,10 +77,21 @@ class PipelineExecutor:
         providers: dict[str, Any],
     ) -> None:
         """Start a pipeline in a background asyncio task."""
-        task = asyncio.create_task(
-            self._run_pipeline(pipeline_id, graph, goal, logs_root, providers),
-            name=f"pipeline-{pipeline_id}",
+        # Run pipeline in a thread pool to avoid blocking the FastAPI event loop.
+        # The engine's LLM calls are blocking — running them in the main event loop
+        # would freeze all HTTP endpoints during execution.
+        loop = asyncio.get_running_loop()
+        task = loop.run_in_executor(
+            None,  # default ThreadPoolExecutor
+            self._run_pipeline_sync,
+            pipeline_id,
+            graph,
+            goal,
+            logs_root,
+            providers,
         )
+        # Wrap in a Task so we can track it
+        task = asyncio.ensure_future(task)
         self.active_pipelines[pipeline_id] = {
             "task": task,
             "status": "running",
@@ -88,6 +99,27 @@ class PipelineExecutor:
         }
         self.cancel_events[pipeline_id] = asyncio.Event()
         self.event_queues[pipeline_id] = asyncio.Queue()
+
+    def _run_pipeline_sync(
+        self,
+        pipeline_id: str,
+        graph: Any,
+        goal: str,
+        logs_root: str,
+        providers: dict[str, Any],
+    ) -> None:
+        """Synchronous wrapper that runs the async pipeline in its own event loop.
+
+        Called from a thread pool via run_in_executor() so the main FastAPI
+        event loop stays responsive during long-running LLM calls.
+        """
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                self._run_pipeline(pipeline_id, graph, goal, logs_root, providers)
+            )
+        finally:
+            loop.close()
 
     async def _run_pipeline(
         self,

@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-router = APIRouter(tags=["submissions"])
+router = APIRouter(prefix="/api/pipelines", tags=["submissions"])
 
 
 class PipelineSubmission(BaseModel):
@@ -28,7 +28,7 @@ class PipelineSubmission(BaseModel):
     )
 
 
-@router.post("/api/pipelines", status_code=201)
+@router.post("", status_code=201)
 async def submit_pipeline(request: Request, submission: PipelineSubmission):
     """Submit a pipeline for execution.
 
