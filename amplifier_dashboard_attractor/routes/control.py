@@ -85,7 +85,8 @@ async def pipeline_events(request: Request, pipeline_id: str):
             try:
                 item = await asyncio.wait_for(queue.get(), timeout=30.0)
             except asyncio.TimeoutError:
-                # Send keepalive comment
+                if await request.is_disconnected():
+                    return
                 yield ": keepalive\n\n"
                 continue
 
@@ -153,10 +154,9 @@ async def answer_question(
 
     answered = executor.answer_question(pipeline_id, question_id, body.answer)
     if not answered:
-        # Determine whether 404 or 409
-        pipeline_questions = executor.questions.get(pipeline_id, {})
-        question = pipeline_questions.get(question_id)
-        if question is None:
+        # Use encapsulated status check instead of reaching into internals
+        q_status = executor.question_status(pipeline_id, question_id)
+        if q_status in ("not_found", "pipeline_not_found"):
             raise HTTPException(
                 status_code=404,
                 detail=f"Question {question_id} not found",

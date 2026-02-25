@@ -134,6 +134,11 @@ class PipelineExecutor:
             if pipeline_id in self.active_pipelines:
                 self.active_pipelines[pipeline_id]["status"] = "failed"
                 self.active_pipelines[pipeline_id]["error"] = str(exc)
+        finally:
+            # Clean up transient per-pipeline resources.
+            # Keep questions for a grace period (don't clean up immediately).
+            self.cancel_events.pop(pipeline_id, None)
+            self.event_queues.pop(pipeline_id, None)
 
     def _build_backend(self, providers: dict[str, Any]) -> Any | None:
         """Build a backend from provider configuration.
@@ -183,6 +188,21 @@ class PipelineExecutor:
         """Get all pending (unanswered) questions for a pipeline."""
         pipeline_questions = self.questions.get(pipeline_id, {})
         return [q for q in pipeline_questions.values() if q.answer is None]
+
+    def question_status(self, pipeline_id: str, question_id: str) -> str:
+        """Return the status of a question.
+
+        Returns 'pending', 'answered', 'not_found', or 'pipeline_not_found'.
+        """
+        pipeline_questions = self.questions.get(pipeline_id)
+        if pipeline_questions is None:
+            return "pipeline_not_found"
+        question = pipeline_questions.get(question_id)
+        if question is None:
+            return "not_found"
+        if question.answer is not None:
+            return "answered"
+        return "pending"
 
     def answer_question(self, pipeline_id: str, question_id: str, answer: str) -> bool:
         """Answer a pending question.

@@ -122,6 +122,54 @@ async def test_get_questions_unknown_pipeline():
     assert executor.get_questions("nonexistent") == []
 
 
+@pytest.mark.asyncio
+async def test_question_status_pipeline_not_found():
+    """question_status() returns 'pipeline_not_found' for unknown pipeline."""
+    executor = PipelineExecutor()
+    assert executor.question_status("nonexistent", "q1") == "pipeline_not_found"
+
+
+@pytest.mark.asyncio
+async def test_question_status_not_found():
+    """question_status() returns 'not_found' for unknown question ID."""
+    executor = PipelineExecutor()
+    executor.questions["p1"] = {}
+    assert executor.question_status("p1", "q99") == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_question_status_pending():
+    """question_status() returns 'pending' for unanswered question."""
+    executor = PipelineExecutor()
+    q = PendingQuestion(
+        question_id="q1",
+        pipeline_id="p1",
+        node_id="review",
+        prompt="Approve?",
+        options=["yes", "no"],
+        created_at="2026-02-25T00:00:00",
+    )
+    executor.questions["p1"] = {"q1": q}
+    assert executor.question_status("p1", "q1") == "pending"
+
+
+@pytest.mark.asyncio
+async def test_question_status_answered():
+    """question_status() returns 'answered' for already-answered question."""
+    executor = PipelineExecutor()
+    q = PendingQuestion(
+        question_id="q1",
+        pipeline_id="p1",
+        node_id="review",
+        prompt="Approve?",
+        options=["yes", "no"],
+        created_at="2026-02-25T00:00:00",
+    )
+    q.answer = "yes"
+    executor.questions["p1"] = {"q1": q}
+    assert executor.question_status("p1", "q1") == "answered"
+
+
 # ---------------------------------------------------------------------------
 # Endpoint tests (Task 6)
 # ---------------------------------------------------------------------------
