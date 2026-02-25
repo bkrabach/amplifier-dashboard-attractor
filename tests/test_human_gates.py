@@ -3,11 +3,13 @@
 import asyncio
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 
 from amplifier_dashboard_attractor.pipeline_executor import (
     PendingQuestion,
     PipelineExecutor,
 )
+from amplifier_dashboard_attractor.server import create_app
 
 
 @pytest.mark.asyncio
@@ -118,3 +120,109 @@ async def test_get_questions_unknown_pipeline():
     """get_questions() returns empty list for unknown pipeline."""
     executor = PipelineExecutor()
     assert executor.get_questions("nonexistent") == []
+
+
+# ---------------------------------------------------------------------------
+# Endpoint tests (Task 6)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def gate_app(tmp_path):
+    return create_app(pipeline_logs_dir=str(tmp_path))
+
+
+@pytest.fixture
+async def gate_client(gate_app):
+    transport = ASGITransport(app=gate_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
+
+
+def _register_fake_pipeline_with_question(
+    app, pipeline_id="gate-pipe", question_id="q1"
+):
+    """Helper: register a fake running pipeline with a pending question."""
+    executor = app.state.pipeline_executor
+    executor.active_pipelines[pipeline_id] = {
+        "task": None,
+        "status": "running",
+        "logs_root": "/tmp/test",
+    }
+    executor.cancel_events[pipeline_id] = asyncio.Event()
+    executor.event_queues[pipeline_id] = asyncio.Queue()
+
+    q = PendingQuestion(
+        question_id=question_id,
+        pipeline_id=pipeline_id,
+        node_id="human_review",
+        prompt="Approve changes?",
+        options=["approve", "revise"],
+        created_at="2026-02-25T00:00:00",
+    )
+    executor.register_question(pipeline_id, q)
+    return q
+
+
+@pytest.mark.asyncio
+async def test_get_questions_endpoint_not_found(gate_client):
+    """GET /api/pipelines/{id}/questions returns 404 for unknown pipeline."""
+    resp = await gate_client.get("/api/pipelines/unknown-id/questions")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_questions_endpoint_returns_pending(gate_app, gate_client):
+    """GET /api/pipelines/{id}/questions returns pending questions."""
+    _register_fake_pipeline_with_question(gate_app)
+
+    resp = await gate_client.get("/api/pipelines/gate-pipe/questions")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["question_id"] == "q1"
+    assert body[0]["prompt"] == "Approve changes?"
+    assert body[0]["options"] == ["approve", "revise"]
+    assert "answer_event" not in body[0]  # internal field not serialized
+
+
+@pytest.mark.asyncio
+async def test_answer_question_endpoint_success(gate_app, gate_client):
+    """POST /api/pipelines/{id}/questions/{qid}/answer answers the question."""
+    q = _register_fake_pipeline_with_question(gate_app)
+
+    resp = await gate_client.post(
+        "/api/pipelines/gate-pipe/questions/q1/answer",
+        json={"answer": "approve"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "answered"
+
+    # Verify the question object was updated
+    assert q.answer == "approve"
+    assert q.answer_event.is_set()
+
+
+@pytest.mark.asyncio
+async def test_answer_question_endpoint_not_found(gate_client):
+    """POST answer for unknown pipeline returns 404."""
+    resp = await gate_client.post(
+        "/api/pipelines/unknown/questions/q1/answer",
+        json={"answer": "yes"},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_answer_question_endpoint_conflict(gate_app, gate_client):
+    """POST answer for already-answered question returns 409."""
+    q = _register_fake_pipeline_with_question(gate_app)
+    q.answer = "approve"
+    q.answer_event.set()
+
+    resp = await gate_client.post(
+        "/api/pipelines/gate-pipe/questions/q1/answer",
+        json={"answer": "revise"},
+    )
+    assert resp.status_code == 409

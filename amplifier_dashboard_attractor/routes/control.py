@@ -12,6 +12,7 @@ import asyncio
 import json
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
 router = APIRouter(prefix="/api/pipelines", tags=["control"])
@@ -23,6 +24,12 @@ def _get_executor(request: Request):
     if executor is None:
         raise HTTPException(status_code=503, detail="Pipeline executor not available")
     return executor
+
+
+class AnswerBody(BaseModel):
+    """Request body for answering a human gate question."""
+
+    answer: str
 
 
 @router.post("/{pipeline_id}/cancel")
@@ -99,3 +106,64 @@ async def pipeline_events(request: Request, pipeline_id: str):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/{pipeline_id}/questions")
+async def get_questions(request: Request, pipeline_id: str):
+    """List pending (unanswered) questions for a pipeline.
+
+    Returns 404 if pipeline not found.
+    """
+    executor = _get_executor(request)
+
+    status = executor.get_status(pipeline_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail=f"Pipeline {pipeline_id} not found")
+
+    questions = executor.get_questions(pipeline_id)
+    return [
+        {
+            "question_id": q.question_id,
+            "node_id": q.node_id,
+            "prompt": q.prompt,
+            "options": q.options,
+            "created_at": q.created_at,
+        }
+        for q in questions
+    ]
+
+
+@router.post("/{pipeline_id}/questions/{question_id}/answer")
+async def answer_question(
+    request: Request,
+    pipeline_id: str,
+    question_id: str,
+    body: AnswerBody,
+):
+    """Answer a pending human gate question.
+
+    Returns 404 if pipeline or question not found.
+    Returns 409 if question already answered.
+    """
+    executor = _get_executor(request)
+
+    status = executor.get_status(pipeline_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail=f"Pipeline {pipeline_id} not found")
+
+    answered = executor.answer_question(pipeline_id, question_id, body.answer)
+    if not answered:
+        # Determine whether 404 or 409
+        pipeline_questions = executor.questions.get(pipeline_id, {})
+        question = pipeline_questions.get(question_id)
+        if question is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Question {question_id} not found",
+            )
+        raise HTTPException(
+            status_code=409,
+            detail=f"Question {question_id} already answered",
+        )
+
+    return {"status": "answered"}
