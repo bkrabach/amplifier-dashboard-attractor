@@ -82,6 +82,11 @@ def create_app(
 
         dirs = [d.strip() for d in pipeline_logs_dir.split(",") if d.strip()]
         app.state.pipeline_logs_reader = PipelineLogsReader(logs_dirs=dirs)
+
+        # Initialize pipeline executor for background execution
+        from amplifier_dashboard_attractor.pipeline_executor import PipelineExecutor
+
+        app.state.pipeline_executor = PipelineExecutor()
     elif sessions_dir:
         from amplifier_dashboard_attractor.session_reader import SessionReader
 
