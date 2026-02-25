@@ -9,9 +9,30 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+class EventCaptureHook:
+    """Captures pipeline events and pushes them to an asyncio.Queue.
+
+    Used by the SSE endpoint to stream events to connected clients.
+    """
+
+    def __init__(self, queue: asyncio.Queue) -> None:
+        self._queue = queue
+
+    async def emit(self, event: str, data: dict) -> None:
+        """Push an event onto the queue."""
+        self._queue.put_nowait(
+            {
+                "event": event,
+                "data": data,
+                "ts": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
 
 class PipelineExecutor:
@@ -24,6 +45,7 @@ class PipelineExecutor:
     def __init__(self) -> None:
         self.active_pipelines: dict[str, dict[str, Any]] = {}
         self.cancel_events: dict[str, asyncio.Event] = {}
+        self.event_queues: dict[str, asyncio.Queue] = {}
 
     async def start(
         self,
@@ -45,6 +67,7 @@ class PipelineExecutor:
             "logs_root": logs_root,
         }
         self.cancel_events[pipeline_id] = asyncio.Event()
+        self.event_queues[pipeline_id] = asyncio.Queue()
 
     async def _run_pipeline(
         self,
@@ -126,6 +149,10 @@ class PipelineExecutor:
             cancel_event.set()
         return True
 
+    def get_event_queue(self, pipeline_id: str) -> asyncio.Queue | None:
+        """Get the event queue for a pipeline, or None if not found."""
+        return self.event_queues.get(pipeline_id)
+
     def cleanup_completed(self) -> int:
         """Remove completed/failed pipelines from tracking.
 
@@ -138,5 +165,6 @@ class PipelineExecutor:
         ]
         for pid in to_remove:
             self.cancel_events.pop(pid, None)
+            self.event_queues.pop(pid, None)
             del self.active_pipelines[pid]
         return len(to_remove)
