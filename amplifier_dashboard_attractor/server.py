@@ -25,6 +25,7 @@ from amplifier_dashboard_attractor.routes.submissions import (
     router as submissions_router,
 )
 from amplifier_dashboard_attractor.routes.ws import router as ws_router
+from amplifier_dashboard_attractor.routes.control import router as control_router
 
 
 def create_app(
@@ -73,6 +74,7 @@ def create_app(
     app.include_router(pipelines_router)
     app.include_router(submissions_router)
     app.include_router(ws_router)
+    app.include_router(control_router)
 
     # Initialize data source
     if pipeline_logs_dir:
