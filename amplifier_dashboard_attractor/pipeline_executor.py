@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
@@ -35,6 +36,24 @@ class EventCaptureHook:
         )
 
 
+@dataclass
+class PendingQuestion:
+    """A human gate question awaiting an answer.
+
+    The answer_event is signaled when an answer is provided,
+    allowing the blocked pipeline handler to resume.
+    """
+
+    question_id: str
+    pipeline_id: str
+    node_id: str
+    prompt: str
+    options: list[str]
+    created_at: str
+    answer: str | None = None
+    answer_event: asyncio.Event = field(default_factory=asyncio.Event)
+
+
 class PipelineExecutor:
     """Manages background pipeline execution tasks.
 
@@ -46,6 +65,7 @@ class PipelineExecutor:
         self.active_pipelines: dict[str, dict[str, Any]] = {}
         self.cancel_events: dict[str, asyncio.Event] = {}
         self.event_queues: dict[str, asyncio.Queue] = {}
+        self.questions: dict[str, dict[str, PendingQuestion]] = {}
 
     async def start(
         self,
@@ -153,6 +173,35 @@ class PipelineExecutor:
         """Get the event queue for a pipeline, or None if not found."""
         return self.event_queues.get(pipeline_id)
 
+    def register_question(self, pipeline_id: str, question: PendingQuestion) -> None:
+        """Register a pending question for a pipeline."""
+        if pipeline_id not in self.questions:
+            self.questions[pipeline_id] = {}
+        self.questions[pipeline_id][question.question_id] = question
+
+    def get_questions(self, pipeline_id: str) -> list[PendingQuestion]:
+        """Get all pending (unanswered) questions for a pipeline."""
+        pipeline_questions = self.questions.get(pipeline_id, {})
+        return [q for q in pipeline_questions.values() if q.answer is None]
+
+    def answer_question(self, pipeline_id: str, question_id: str, answer: str) -> bool:
+        """Answer a pending question.
+
+        Returns True if the answer was accepted, False if the question
+        was not found or already answered.
+        """
+        pipeline_questions = self.questions.get(pipeline_id)
+        if pipeline_questions is None:
+            return False
+        question = pipeline_questions.get(question_id)
+        if question is None:
+            return False
+        if question.answer is not None:
+            return False
+        question.answer = answer
+        question.answer_event.set()
+        return True
+
     def cleanup_completed(self) -> int:
         """Remove completed/failed pipelines from tracking.
 
@@ -166,5 +215,6 @@ class PipelineExecutor:
         for pid in to_remove:
             self.cancel_events.pop(pid, None)
             self.event_queues.pop(pid, None)
+            self.questions.pop(pid, None)
             del self.active_pipelines[pid]
         return len(to_remove)
