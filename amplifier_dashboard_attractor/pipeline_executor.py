@@ -23,6 +23,7 @@ class PipelineExecutor:
 
     def __init__(self) -> None:
         self.active_pipelines: dict[str, dict[str, Any]] = {}
+        self.cancel_events: dict[str, asyncio.Event] = {}
 
     async def start(
         self,
@@ -43,6 +44,7 @@ class PipelineExecutor:
             "status": "running",
             "logs_root": logs_root,
         }
+        self.cancel_events[pipeline_id] = asyncio.Event()
 
     async def _run_pipeline(
         self,
@@ -107,6 +109,23 @@ class PipelineExecutor:
             return None
         return info["status"]
 
+    def cancel(self, pipeline_id: str) -> bool:
+        """Request cancellation of a running pipeline.
+
+        Returns True if cancellation was requested, False if pipeline
+        not found or not in a cancellable state.
+        """
+        info = self.active_pipelines.get(pipeline_id)
+        if info is None:
+            return False
+        if info["status"] != "running":
+            return False
+        info["status"] = "cancelling"
+        cancel_event = self.cancel_events.get(pipeline_id)
+        if cancel_event:
+            cancel_event.set()
+        return True
+
     def cleanup_completed(self) -> int:
         """Remove completed/failed pipelines from tracking.
 
@@ -115,8 +134,9 @@ class PipelineExecutor:
         to_remove = [
             pid
             for pid, info in self.active_pipelines.items()
-            if info["status"] in ("completed", "failed")
+            if info["status"] in ("completed", "failed", "cancelled")
         ]
         for pid in to_remove:
+            self.cancel_events.pop(pid, None)
             del self.active_pipelines[pid]
         return len(to_remove)
