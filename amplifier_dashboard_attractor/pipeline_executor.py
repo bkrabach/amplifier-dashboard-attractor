@@ -175,12 +175,20 @@ class PipelineExecutor:
     def _build_backend(self, providers: dict[str, Any]) -> Any | None:
         """Build a backend from provider configuration.
 
-        Returns None if no providers are configured (simulation mode).
+        Attempts to create a DirectProviderBackend with a real unified_llm
+        Client.  Falls back to None (simulation mode) if the required
+        packages are not installed or no API keys are available.
         """
-        if not providers:
+        try:
+            from amplifier_module_loop_pipeline import DirectProviderBackend
+
+            # DirectProviderBackend with provider=None auto-creates a
+            # unified_llm.Client from environment variables (ANTHROPIC_API_KEY,
+            # OPENAI_API_KEY, etc.)
+            return DirectProviderBackend(provider=None, tools={}, hooks=None)
+        except Exception as exc:
+            logger.warning("Could not create real backend, using simulation: %s", exc)
             return None
-        # Future: build AmplifierBackend from provider configs
-        return None
 
     def get_status(self, pipeline_id: str) -> str | None:
         """Get the current status of a pipeline."""
