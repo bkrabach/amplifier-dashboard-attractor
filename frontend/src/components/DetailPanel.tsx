@@ -4,13 +4,19 @@
  */
 
 import { Link } from "react-router-dom";
-import type { NodeInfo, NodeRun } from "../lib/types";
+import type { NodeInfo, NodeRun, EdgeDecision } from "../lib/types";
 
 interface DetailPanelProps {
   nodeId: string | null;
   nodeInfo: NodeInfo | null;
   runs: NodeRun[];
   contextId?: string;
+  prompt?: string | null;
+  response?: string | null;
+  edgeDecisions?: EdgeDecision[];
+  detailLoading?: boolean;
+  timing?: Record<string, number>;
+  loopIterations?: Record<string, number>;
 }
 
 function formatDuration(ms: number): string {
@@ -19,7 +25,18 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-export default function DetailPanel({ nodeId, nodeInfo, runs, contextId }: DetailPanelProps) {
+export default function DetailPanel({
+  nodeId,
+  nodeInfo,
+  runs,
+  contextId,
+  prompt: _prompt,
+  response: _response,
+  edgeDecisions: _edgeDecisions,
+  detailLoading: _detailLoading,
+  timing: _timing,
+  loopIterations: _loopIterations,
+}: DetailPanelProps) {
   if (!nodeId || !nodeInfo) {
     return (
       <div

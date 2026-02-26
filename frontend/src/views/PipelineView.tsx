@@ -23,10 +23,10 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { getPipeline } from "../lib/api";
+import { getPipeline, getNode } from "../lib/api";
 import { layoutPipeline, updateNodeData } from "../lib/dotLayout";
 import type { PipelineNodeData } from "../lib/dotLayout";
-import type { PipelineRunState, NodeInfo, NodeRun } from "../lib/types";
+import type { PipelineRunState, NodeInfo, NodeRun, NodeDetail } from "../lib/types";
 import { useWebSocket } from "../hooks/useWebSocket";
 import PipelineNode from "../components/PipelineNode";
 import PipelineEdge from "../components/PipelineEdge";
@@ -47,6 +47,8 @@ export default function PipelineView() {
 
   // Selected node for detail panel
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [nodeDetail, setNodeDetail] = useState<NodeDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   // WebSocket for live updates
   const { state: wsState, connected: wsConnected } = useWebSocket(contextId);
@@ -102,6 +104,19 @@ export default function PipelineView() {
     if (!selectedNodeId || !state) return [];
     return state.node_runs[selectedNodeId] ?? [];
   }, [selectedNodeId, state]);
+
+  // Lazy-fetch full node detail (prompt/response) on node click
+  useEffect(() => {
+    if (!selectedNodeId || !contextId) {
+      setNodeDetail(null);
+      return;
+    }
+    setDetailLoading(true);
+    getNode(contextId, selectedNodeId)
+      .then(setNodeDetail)
+      .catch(() => setNodeDetail(null))
+      .finally(() => setDetailLoading(false));
+  }, [selectedNodeId, contextId]);
 
   if (loading) {
     return (
@@ -201,6 +216,12 @@ export default function PipelineView() {
           nodeInfo={selectedNodeInfo}
           runs={selectedNodeRuns}
           contextId={contextId ?? ""}
+          prompt={nodeDetail?.prompt ?? null}
+          response={nodeDetail?.response ?? null}
+          edgeDecisions={nodeDetail?.edge_decisions ?? []}
+          detailLoading={detailLoading}
+          timing={state?.timing}
+          loopIterations={state?.loop_iterations}
         />
       </div>
     </div>

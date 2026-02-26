@@ -90,6 +90,8 @@ export interface NodeDetail {
   info: NodeInfo;
   runs: NodeRun[];
   edge_decisions: EdgeDecision[];
+  prompt?: string | null;
+  response?: string | null;
 }
 
 /**
