@@ -71,6 +71,7 @@ export default function PipelineNode({ data }: NodeProps) {
       <div
         className={`nopan nodrag ${animClass}`}
         style={{
+          position: "relative",
           minWidth: "var(--node-min-width)",
           background: "var(--surface-raised)",
           border: `2px ${style.borderStyle} ${style.border}`,
@@ -112,6 +113,26 @@ export default function PipelineNode({ data }: NodeProps) {
             <span style={{ color: "var(--state-running)" }}>running...</span>
           )}
         </div>
+        {nodeData.loopCount > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: -6,
+              right: -6,
+              background: "#f59e0b",
+              color: "#000",
+              fontSize: "0.65rem",
+              fontWeight: 700,
+              borderRadius: "999px",
+              padding: "0 5px",
+              lineHeight: "16px",
+              minWidth: 16,
+              textAlign: "center",
+            }}
+          >
+            ×{nodeData.loopCount}
+          </div>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} style={{ visibility: "hidden" }} />
     </>

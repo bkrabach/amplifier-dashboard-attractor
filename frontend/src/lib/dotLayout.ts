@@ -34,6 +34,7 @@ export interface PipelineNodeData {
   durationMs: number;
   tokensIn: number;
   tokensOut: number;
+  loopCount: number;
   [key: string]: unknown;
 }
 
@@ -155,6 +156,7 @@ export async function layoutPipeline(
           durationMs: lastRun?.duration_ms ?? 0,
           tokensIn: lastRun?.tokens_in ?? 0,
           tokensOut: lastRun?.tokens_out ?? 0,
+          loopCount: pipelineState.loop_iterations[nodeId] ?? 0,
         },
       };
     }
@@ -220,6 +222,7 @@ export function updateNodeData(
         durationMs: lastRun?.duration_ms ?? 0,
         tokensIn: lastRun?.tokens_in ?? 0,
         tokensOut: lastRun?.tokens_out ?? 0,
+        loopCount: newState.loop_iterations[nodeId] ?? 0,
       },
     };
   });
