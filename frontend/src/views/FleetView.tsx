@@ -82,6 +82,7 @@ export default function FleetView() {
             <th style={{ padding: "var(--space-sm) var(--space-md)" }}>Progress</th>
             <th style={{ padding: "var(--space-sm) var(--space-md)" }}>Elapsed</th>
             <th style={{ padding: "var(--space-sm) var(--space-md)" }}>Tokens</th>
+            <th style={{ padding: "var(--space-sm) var(--space-md)" }}>Errors</th>
             <th style={{ padding: "var(--space-sm) var(--space-md)" }}>Goal</th>
           </tr>
         </thead>
@@ -150,6 +151,17 @@ export default function FleetView() {
                 }}
               >
                 {formatTokens(p.total_tokens_in + p.total_tokens_out)}
+              </td>
+              <td
+                style={{
+                  padding: "var(--space-sm) var(--space-md)",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "0.85rem",
+                  color: p.errors.length > 0 ? "var(--state-failed)" : "var(--text-tertiary)",
+                  fontWeight: p.errors.length > 0 ? 600 : 400,
+                }}
+              >
+                {p.errors.length > 0 ? p.errors.length : "—"}
               </td>
               <td
                 style={{
