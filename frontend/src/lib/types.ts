@@ -48,7 +48,7 @@ export interface PipelineRunState {
   goal: string;
   nodes: Record<string, NodeInfo>;
   edges: EdgeInfo[];
-  status: "pending" | "running" | "complete" | "failed";
+  status: "pending" | "running" | "complete" | "failed" | "cancelled";
   current_node: string | null;
   execution_path: string[];
   branches_taken: EdgeInfo[];
@@ -111,9 +111,15 @@ export function getNodeState(
   const runs = state.node_runs[nodeId];
   if (!runs || runs.length === 0) return "pending";
   const lastRun = runs[runs.length - 1];
-  if (lastRun.status === "running") return "running";
+  if (lastRun.status === "running") {
+    // If there are prior runs, this is a retry, not first attempt
+    return runs.length > 1 ? "retrying" : "running";
+  }
   if (lastRun.status === "success") return "success";
   if (lastRun.status === "fail" || lastRun.status === "timeout") {
+    // If loop_iterations shows active retries, show retrying state
+    const loopCount = state.loop_iterations[nodeId] ?? 0;
+    if (loopCount > 0 && state.status === "running") return "retrying";
     return "failed";
   }
   return "pending";
