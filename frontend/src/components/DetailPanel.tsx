@@ -3,6 +3,7 @@
  * Becomes an overlay drawer below 1280px viewport (deferred to v1.1).
  */
 
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { NodeInfo, NodeRun, EdgeDecision } from "../lib/types";
 
@@ -19,6 +20,37 @@ interface DetailPanelProps {
   loopIterations?: Record<string, number>;
 }
 
+function CollapsibleBlock({ title, content }: { title: string; content: string }) {
+  const [expanded, setExpanded] = useState(content.length <= 500);
+  const displayContent = expanded ? content : content.slice(0, 500) + "…";
+  return (
+    <div style={{ marginTop: "var(--space-md)" }}>
+      <h3 style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "var(--space-xs)" }}>
+        {title}
+      </h3>
+      <pre style={{
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        fontSize: "0.8rem",
+        fontFamily: "var(--font-mono)",
+        background: "var(--bg-tertiary)",
+        padding: "var(--space-sm)",
+        borderRadius: "var(--radius-sm)",
+        maxHeight: expanded ? "none" : "200px",
+        overflow: "hidden",
+      }}>
+        {displayContent}
+      </pre>
+      {content.length > 500 && (
+        <button onClick={() => setExpanded(!expanded)}
+          style={{ fontSize: "0.75rem", color: "var(--text-link, #60a5fa)", background: "none", border: "none", cursor: "pointer", padding: "var(--space-xs, 4px) 0" }}>
+          {expanded ? "Show less" : "Show full"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function formatDuration(ms: number): string {
   if (ms === 0) return "-";
   if (ms < 1000) return `${ms}ms`;
@@ -30,10 +62,10 @@ export default function DetailPanel({
   nodeInfo,
   runs,
   contextId,
-  prompt: _prompt,
-  response: _response,
+  prompt,
+  response,
   edgeDecisions: _edgeDecisions,
-  detailLoading: _detailLoading,
+  detailLoading,
   timing: _timing,
   loopIterations: _loopIterations,
 }: DetailPanelProps) {
@@ -181,6 +213,24 @@ export default function DetailPanel({
           )}
         </div>
       ))}
+
+      {/* Prompt */}
+      {prompt && (
+        <CollapsibleBlock title="Prompt" content={prompt} />
+      )}
+
+      {/* Response */}
+      {response ? (
+        <CollapsibleBlock title="Response" content={response} />
+      ) : detailLoading ? (
+        <div style={{ color: "var(--text-tertiary)", fontSize: "0.8rem", padding: "var(--space-sm)" }}>
+          Loading…
+        </div>
+      ) : prompt !== undefined && prompt !== null ? (
+        <div style={{ color: "var(--text-tertiary)", fontSize: "0.8rem", padding: "var(--space-sm)" }}>
+          Response not available in this data source mode
+        </div>
+      ) : null}
     </div>
   );
 }
