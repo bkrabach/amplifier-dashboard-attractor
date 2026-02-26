@@ -66,7 +66,7 @@ export default function DetailPanel({
   response,
   edgeDecisions,
   detailLoading,
-  timing: _timing,
+  timing,
   loopIterations: _loopIterations,
 }: DetailPanelProps) {
   if (!nodeId || !nodeInfo) {
@@ -257,6 +257,40 @@ export default function DetailPanel({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Time Distribution */}
+      {timing && Object.keys(timing).length > 1 && (
+        <div style={{ marginTop: "var(--space-md)" }}>
+          <h3 style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "var(--space-xs)" }}>
+            Time Distribution
+          </h3>
+          {(() => {
+            const maxMs = Math.max(...Object.values(timing));
+            return Object.entries(timing).map(([nid, ms]) => (
+              <div key={nid} style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", marginBottom: 2, fontSize: "0.75rem" }}>
+                <span style={{
+                  width: 80, fontFamily: "var(--font-mono)", textAlign: "right",
+                  color: nid === nodeId ? "var(--text-primary)" : "var(--text-tertiary)",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  {nid}
+                </span>
+                <div style={{ flex: 1, height: 8, background: "var(--bg-tertiary)", borderRadius: 4 }}>
+                  <div style={{
+                    width: `${maxMs > 0 ? (ms / maxMs) * 100 : 0}%`,
+                    height: "100%",
+                    background: nid === nodeId ? "var(--state-running, #3b82f6)" : "var(--text-tertiary)",
+                    borderRadius: 4,
+                  }} />
+                </div>
+                <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-tertiary)", width: 55, textAlign: "right" }}>
+                  {ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`}
+                </span>
+              </div>
+            ));
+          })()}
         </div>
       )}
     </div>
