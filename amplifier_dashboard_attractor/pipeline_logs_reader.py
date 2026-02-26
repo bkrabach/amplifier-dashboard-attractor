@@ -71,7 +71,9 @@ def _derive_status(checkpoint: dict[str, Any]) -> str:
             return "cancelled"
 
     # Pipeline reached terminal node → complete
-    if current == "done":
+    # The engine writes the actual node name (e.g., "Done", "End", "EXIT") —
+    # match case-insensitively.
+    if current.lower() == "done":
         return "complete"
 
     # Explicit failure outcome in context
@@ -83,8 +85,21 @@ def _derive_status(checkpoint: dict[str, Any]) -> str:
         if isinstance(info, dict) and info.get("status") in ("fail", "failed", "error"):
             return "failed"
 
-    # If we have completed nodes but current_node isn't "done", still running
-    if checkpoint.get("completed_nodes"):
+    # Detect completion when all nodes with outcomes have completed successfully
+    # and current_node is a terminal node (but not literally "done").
+    completed = checkpoint.get("completed_nodes", {})
+    if outcomes and len(completed) == len(outcomes):
+        # All tracked nodes completed — check if all succeeded
+        all_ok = all(
+            (isinstance(info, dict) and info.get("status") in ("success", None))
+            or (isinstance(info, str) and info == "success")
+            for info in outcomes.values()
+        )
+        if all_ok:
+            return "complete"
+
+    # If we have completed nodes but current_node isn't terminal, still running
+    if completed:
         return "running"
 
     return "pending"
