@@ -186,7 +186,12 @@ export async function layoutPipeline(
       target: e.target,
       type: "pipelineEdge",
       label: e.label || undefined,
-      data: { traversed: isTraversed, elkSections },
+      data: {
+        traversed: isTraversed,
+        elkSections,
+        sourceLabel: pipelineState.nodes[e.source]?.label || e.source,
+        targetLabel: pipelineState.nodes[e.target]?.label || e.target,
+      },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: isTraversed ? "var(--text-secondary)" : "var(--text-tertiary)",

@@ -153,8 +153,28 @@ export default function PipelineEdge({
     });
   }
 
+  const dataRecord = data as Record<string, unknown> | undefined;
+  const sourceLabel = (dataRecord?.sourceLabel as string) ?? "";
+  const targetLabel = (dataRecord?.targetLabel as string) ?? "";
+
+  // Build a descriptive tooltip: "label: source → target (traversed)"
+  const tooltipParts: string[] = [];
+  if (label) tooltipParts.push(String(label));
+  if (sourceLabel && targetLabel) tooltipParts.push(`${sourceLabel} → ${targetLabel}`);
+  if (traversed) tooltipParts.push("(traversed)");
+  const tooltipText = tooltipParts.join(": ") || "edge";
+
   return (
-    <>
+    <g>
+      <title>{tooltipText}</title>
+      {/* Invisible wider path for easier hover/click targeting */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={12}
+        style={{ cursor: "pointer" }}
+      />
       <BaseEdge
         id={id}
         path={edgePath}
@@ -181,6 +201,6 @@ export default function PipelineEdge({
           {String(label)}
         </text>
       )}
-    </>
+    </g>
   );
 }
