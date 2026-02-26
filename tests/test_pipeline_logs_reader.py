@@ -204,8 +204,10 @@ def test_derive_status_complete() -> None:
 
 
 def test_derive_status_success_outcome() -> None:
+    # A pipeline is only "complete" when current_node is "done" —
+    # outcome="success" alone just means the last node succeeded.
     assert (
-        _derive_status({"context": {"outcome": "success"}, "current_node": "x"})
+        _derive_status({"context": {"outcome": "success"}, "current_node": "done"})
         == "complete"
     )
 
@@ -234,6 +236,34 @@ def test_derive_status_running() -> None:
 
 def test_derive_status_pending() -> None:
     assert _derive_status({"context": {}}) == "pending"
+
+
+def test_derive_status_cancelled_context_outcome() -> None:
+    """Cancelled via explicit context outcome."""
+    assert _derive_status({"context": {"outcome": "cancelled"}}) == "cancelled"
+
+
+def test_derive_status_cancelled_node_failure_reason() -> None:
+    """Cancelled detected via node outcome failure_reason."""
+    cp = {
+        "context": {"outcome": "success"},  # last node succeeded
+        "current_node": "NodeB",
+        "node_outcomes": {
+            "NodeA": {"status": "success", "failure_reason": "cancelled"},
+        },
+        "completed_nodes": {"NodeA": "success"},
+    }
+    assert _derive_status(cp) == "cancelled"
+
+
+def test_derive_status_success_mid_run_is_running() -> None:
+    """outcome='success' with current_node != 'done' means still running."""
+    cp = {
+        "context": {"outcome": "success"},
+        "current_node": "NodeB",
+        "completed_nodes": {"NodeA": "success"},
+    }
+    assert _derive_status(cp) == "running"
 
 
 # ---------------------------------------------------------------------------

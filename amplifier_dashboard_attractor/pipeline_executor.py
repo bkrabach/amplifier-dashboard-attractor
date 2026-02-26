@@ -182,9 +182,43 @@ class PipelineExecutor:
 
             outcome = await engine.run(goal=goal)
 
-            status = "completed" if outcome.is_success else "failed"
+            # Distinguish cancelled from generic failure
+            if getattr(outcome, "failure_reason", None) == "cancelled":
+                status = "cancelled"
+            elif outcome.is_success:
+                status = "completed"
+            else:
+                status = "failed"
+
             if pipeline_id in self.active_pipelines:
                 self.active_pipelines[pipeline_id]["status"] = status
+
+            # Emit a dedicated pipeline:cancelled terminal event so SSE
+            # clients (both live and late-connecting) can distinguish
+            # cancellation from normal completion or failure.  The engine
+            # emits pipeline:complete with data.status="cancelled", but
+            # never a pipeline:cancelled event.
+            if status == "cancelled":
+                terminal = {
+                    "event": "pipeline:cancelled",
+                    "data": {
+                        "pipeline_id": pipeline_id,
+                        "status": "cancelled",
+                        "reason": getattr(outcome, "notes", None)
+                        or "Pipeline cancelled",
+                    },
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                }
+                history = self.event_history.get(pipeline_id)
+                if history is not None:
+                    history.append(terminal)
+                # Best-effort fan-out to live subscribers (may be cross-
+                # thread; history append above is the durable path).
+                for q in list(self.event_subscribers.get(pipeline_id, [])):
+                    try:
+                        q.put_nowait(terminal)
+                    except Exception:
+                        pass
 
             logger.info(
                 "Pipeline %s finished: %s",

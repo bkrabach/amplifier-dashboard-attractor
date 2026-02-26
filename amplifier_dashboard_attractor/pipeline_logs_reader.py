@@ -56,16 +56,25 @@ def _read_text(path: Path) -> str | None:
 def _derive_status(checkpoint: dict[str, Any]) -> str:
     """Derive pipeline status from checkpoint data.
 
-    Returns "complete", "failed", or "running".
+    Returns "complete", "failed", "cancelled", "running", or "pending".
     """
     current = checkpoint.get("current_node", "")
     outcomes = checkpoint.get("node_outcomes", {})
     ctx = checkpoint.get("context", {})
-
-    # Explicit outcome in context takes priority
     outcome = ctx.get("outcome", "")
-    if outcome == "success" or current == "done":
+
+    # Cancelled takes highest priority — check context and node outcomes
+    if outcome == "cancelled":
+        return "cancelled"
+    for info in outcomes.values():
+        if isinstance(info, dict) and info.get("failure_reason") == "cancelled":
+            return "cancelled"
+
+    # Pipeline reached terminal node → complete
+    if current == "done":
         return "complete"
+
+    # Explicit failure outcome in context
     if outcome in ("fail", "failed", "error"):
         return "failed"
 
