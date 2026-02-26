@@ -17,6 +17,11 @@ from starlette.responses import StreamingResponse
 
 router = APIRouter(prefix="/api/pipelines", tags=["control"])
 
+_TERMINAL_EVENTS = frozenset(
+    {"pipeline:complete", "pipeline:failed", "pipeline:cancelled"}
+)
+_FINISHED_STATUSES = frozenset({"completed", "failed", "cancelled"})
+
 
 def _get_executor(request: Request):
     """Get the pipeline executor from app state, or raise 503."""
@@ -60,9 +65,22 @@ async def cancel_pipeline(request: Request, pipeline_id: str):
 async def pipeline_events(request: Request, pipeline_id: str):
     """Stream pipeline events as Server-Sent Events.
 
-    Returns 404 if pipeline not found.
-    Streams SSE-formatted events from the pipeline's event queue.
-    Closes when pipeline completes, fails, or is cancelled.
+    Behaviour
+    ---------
+    * Returns 404 if the pipeline is not tracked at all.
+    * Returns 404 if ``event_history`` has no entry for the pipeline (which
+      can happen when the pipeline was registered but never started properly).
+    * **Finished pipelines** (completed / failed / cancelled): replays the
+      full ``event_history`` and closes the stream — no live subscription
+      needed.
+    * **Running pipelines**: subscribes for live events, first replays the
+      history snapshot captured at subscribe time, then drains the live
+      queue.  The stream closes on any terminal event
+      (``pipeline:complete``, ``pipeline:failed``, ``pipeline:cancelled``)
+      or when the client disconnects.
+
+    Every event frame includes an ``id:`` field carrying the UTC ISO-8601
+    timestamp so clients can resume from a known position.
     """
     executor = _get_executor(request)
 
@@ -70,42 +88,92 @@ async def pipeline_events(request: Request, pipeline_id: str):
     if status is None:
         raise HTTPException(status_code=404, detail=f"Pipeline {pipeline_id} not found")
 
-    queue = executor.get_event_queue(pipeline_id)
-    if queue is None:
+    history = executor.event_history.get(pipeline_id)
+    if history is None:
         raise HTTPException(
             status_code=404, detail=f"No event stream for {pipeline_id}"
         )
 
+    sse_headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+
+    # ------------------------------------------------------------------
+    # Fast path: pipeline already finished — replay history and close.
+    # ------------------------------------------------------------------
+    pipeline_status = executor.get_status(pipeline_id)
+    if pipeline_status in _FINISHED_STATUSES:
+        # Snapshot history at this moment (it won't grow any further)
+        history_snapshot = list(history)
+
+        async def replay_generator():
+            yield (
+                f"event: connected\n"
+                f"data: {json.dumps({'pipeline_id': pipeline_id})}\n"
+                f"retry: 2000\n\n"
+            )
+            for item in history_snapshot:
+                event_type = item["event"]
+                data = json.dumps(item["data"])
+                ts = item.get("ts", "")
+                yield f"id: {ts}\nevent: {event_type}\ndata: {data}\n\n"
+
+        return StreamingResponse(
+            replay_generator(),
+            media_type="text/event-stream",
+            headers=sse_headers,
+        )
+
+    # ------------------------------------------------------------------
+    # Live path: pipeline is still running — subscribe + replay + drain.
+    # ------------------------------------------------------------------
+    history_snapshot, queue = executor.subscribe(pipeline_id)
+
     async def event_generator():
-        """Yield SSE-formatted strings from the event queue."""
-        # Send initial connected event
-        yield f"event: connected\ndata: {json.dumps({'pipeline_id': pipeline_id})}\nretry: 2000\n\n"
+        try:
+            yield (
+                f"event: connected\n"
+                f"data: {json.dumps({'pipeline_id': pipeline_id})}\n"
+                f"retry: 2000\n\n"
+            )
 
-        while True:
-            try:
-                item = await asyncio.wait_for(queue.get(), timeout=30.0)
-            except asyncio.TimeoutError:
-                if await request.is_disconnected():
+            # Replay events that arrived before we subscribed.
+            # If history already contains a terminal event the pipeline has
+            # finished — yield it and close; no live drain needed.
+            for item in history_snapshot:
+                event_type = item["event"]
+                data = json.dumps(item["data"])
+                ts = item.get("ts", "")
+                yield f"id: {ts}\nevent: {event_type}\ndata: {data}\n\n"
+                if event_type in _TERMINAL_EVENTS:
                     return
-                yield ": keepalive\n\n"
-                continue
 
-            event_type = item["event"]
-            data = json.dumps(item["data"])
-            yield f"event: {event_type}\ndata: {data}\n\n"
+            # Drain live queue until a terminal event or client disconnect
+            while True:
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    if await request.is_disconnected():
+                        return
+                    yield ": keepalive\n\n"
+                    continue
 
-            # Close stream on terminal events
-            if event_type == "pipeline:complete":
-                return
+                event_type = item["event"]
+                data = json.dumps(item["data"])
+                ts = item.get("ts", "")
+                yield f"id: {ts}\nevent: {event_type}\ndata: {data}\n\n"
+
+                if event_type in _TERMINAL_EVENTS:
+                    return
+        finally:
+            executor.unsubscribe(pipeline_id, queue)
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
+        headers=sse_headers,
     )
 
 

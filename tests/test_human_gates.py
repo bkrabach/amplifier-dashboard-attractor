@@ -198,7 +198,8 @@ def _register_fake_pipeline_with_question(
         "logs_root": "/tmp/test",
     }
     executor.cancel_events[pipeline_id] = asyncio.Event()
-    executor.event_queues[pipeline_id] = asyncio.Queue()
+    executor.event_history[pipeline_id] = []
+    executor.event_subscribers[pipeline_id] = []
 
     q = PendingQuestion(
         question_id=question_id,

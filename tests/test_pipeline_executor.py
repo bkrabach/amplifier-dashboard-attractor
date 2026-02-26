@@ -86,7 +86,11 @@ async def test_executor_cleanup(tmp_path):
 
 @pytest.mark.asyncio
 async def test_run_pipeline_cleans_up_transient_resources(tmp_path):
-    """_run_pipeline cleans up cancel_events and event_queues on completion."""
+    """_run_pipeline cleans up cancel_events and event_subscribers on completion.
+
+    event_history is intentionally kept alive so late-connecting SSE clients
+    can replay the full event log after the pipeline finishes.
+    """
     executor = PipelineExecutor()
 
     dot_source = """
@@ -112,13 +116,16 @@ async def test_run_pipeline_cleans_up_transient_resources(tmp_path):
 
     # Confirm transient resources were created
     assert "auto-cleanup-001" in executor.cancel_events
-    assert "auto-cleanup-001" in executor.event_queues
+    assert "auto-cleanup-001" in executor.event_history
+    assert "auto-cleanup-001" in executor.event_subscribers
 
     # Wait for pipeline to finish
     await asyncio.sleep(1.0)
 
-    # cancel_events and event_queues should be cleaned up automatically
+    # cancel_events and event_subscribers are cleaned up automatically
     assert "auto-cleanup-001" not in executor.cancel_events
-    assert "auto-cleanup-001" not in executor.event_queues
+    assert "auto-cleanup-001" not in executor.event_subscribers
+    # event_history survives so late-connecting SSE clients can replay
+    assert "auto-cleanup-001" in executor.event_history
     # questions are kept for a grace period
     # active_pipelines entry remains (tracks status)

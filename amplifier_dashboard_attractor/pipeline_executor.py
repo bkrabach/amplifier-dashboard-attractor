@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -17,23 +18,32 @@ logger = logging.getLogger(__name__)
 
 
 class EventCaptureHook:
-    """Captures pipeline events and pushes them to an asyncio.Queue.
+    """Captures pipeline events into an append-only history and fans out to live subscribers.
 
-    Used by the SSE endpoint to stream events to connected clients.
+    History accumulates every event so late-connecting SSE clients can replay
+    what happened before they joined.  The subscribers list is a set of
+    asyncio.Queue objects — one per connected SSE client — that receive every
+    new event in real time (fan-out).
     """
 
-    def __init__(self, queue: asyncio.Queue) -> None:
-        self._queue = queue
+    def __init__(
+        self,
+        history: list[dict],
+        subscribers: list[asyncio.Queue],
+    ) -> None:
+        self._history = history
+        self._subscribers = subscribers
 
     async def emit(self, event: str, data: dict) -> None:
-        """Push an event onto the queue."""
-        self._queue.put_nowait(
-            {
-                "event": event,
-                "data": data,
-                "ts": datetime.now(timezone.utc).isoformat(),
-            }
-        )
+        """Append an event to history and push it to every live subscriber."""
+        item = {
+            "event": event,
+            "data": data,
+            "ts": datetime.now(timezone.utc).isoformat(),
+        }
+        self._history.append(item)
+        for q in list(self._subscribers):
+            q.put_nowait(item)
 
 
 @dataclass
@@ -59,12 +69,22 @@ class PipelineExecutor:
 
     Each submitted pipeline gets its own asyncio task. The executor
     tracks active tasks by pipeline_id and provides status queries.
+
+    Event streaming model
+    ---------------------
+    * ``event_history[pipeline_id]`` is an append-only list of every event
+      emitted by a pipeline.  It persists after the pipeline finishes so
+      late-connecting SSE clients can replay the full event log.
+    * ``event_subscribers[pipeline_id]`` is a list of asyncio.Queue objects,
+      one per currently-connected SSE client.  New events are fan-out
+      delivered to every subscriber queue.
     """
 
     def __init__(self) -> None:
         self.active_pipelines: dict[str, dict[str, Any]] = {}
-        self.cancel_events: dict[str, asyncio.Event] = {}
-        self.event_queues: dict[str, asyncio.Queue] = {}
+        self.cancel_events: dict[str, threading.Event] = {}
+        self.event_history: dict[str, list[dict]] = {}
+        self.event_subscribers: dict[str, list[asyncio.Queue]] = {}
         self.questions: dict[str, dict[str, PendingQuestion]] = {}
 
     async def start(
@@ -97,8 +117,9 @@ class PipelineExecutor:
             "status": "running",
             "logs_root": logs_root,
         }
-        self.cancel_events[pipeline_id] = asyncio.Event()
-        self.event_queues[pipeline_id] = asyncio.Queue()
+        self.cancel_events[pipeline_id] = threading.Event()
+        self.event_history[pipeline_id] = []
+        self.event_subscribers[pipeline_id] = []
 
     def _run_pipeline_sync(
         self,
@@ -142,11 +163,21 @@ class PipelineExecutor:
 
             registry = HandlerRegistry(backend=backend)
 
+            # Wire EventCaptureHook so SSE clients receive live events
+            hook = EventCaptureHook(
+                history=self.event_history.get(pipeline_id, []),
+                subscribers=self.event_subscribers.get(pipeline_id, []),
+            )
+
+            cancel_event = self.cancel_events.get(pipeline_id)
+
             engine = PipelineEngine(
                 graph=graph,
                 context=context,
                 handler_registry=registry,
                 logs_root=logs_root,
+                hooks=hook,
+                cancel_event=cancel_event,
             )
 
             outcome = await engine.run(goal=goal)
@@ -168,9 +199,10 @@ class PipelineExecutor:
                 self.active_pipelines[pipeline_id]["error"] = str(exc)
         finally:
             # Clean up transient per-pipeline resources.
+            # Keep event_history alive so late-connecting SSE clients can replay.
             # Keep questions for a grace period (don't clean up immediately).
             self.cancel_events.pop(pipeline_id, None)
-            self.event_queues.pop(pipeline_id, None)
+            self.event_subscribers.pop(pipeline_id, None)
 
     def _build_backend(self, providers: dict[str, Any]) -> Any | None:
         """Build a backend from provider configuration.
@@ -214,9 +246,34 @@ class PipelineExecutor:
             cancel_event.set()
         return True
 
-    def get_event_queue(self, pipeline_id: str) -> asyncio.Queue | None:
-        """Get the event queue for a pipeline, or None if not found."""
-        return self.event_queues.get(pipeline_id)
+    def subscribe(self, pipeline_id: str) -> tuple[list[dict], asyncio.Queue]:
+        """Subscribe to live events for a pipeline.
+
+        Returns a (snapshot, queue) tuple where:
+        * ``snapshot`` is a copy of ``event_history[pipeline_id]`` at the
+          moment of the call — safe to iterate without locking.
+        * ``queue`` is a new asyncio.Queue that will receive every event
+          emitted after this call returns.
+
+        The caller MUST call :meth:`unsubscribe` when done to avoid memory
+        leaks and stale queue references.
+        """
+        history = self.event_history.get(pipeline_id, [])
+        snapshot = list(history)  # copy at this instant
+        queue: asyncio.Queue = asyncio.Queue()
+        subscribers = self.event_subscribers.get(pipeline_id)
+        if subscribers is not None:
+            subscribers.append(queue)
+        return snapshot, queue
+
+    def unsubscribe(self, pipeline_id: str, queue: asyncio.Queue) -> None:
+        """Remove a subscriber queue so it no longer receives events."""
+        subscribers = self.event_subscribers.get(pipeline_id)
+        if subscribers is not None:
+            try:
+                subscribers.remove(queue)
+            except ValueError:
+                pass  # already removed — no-op
 
     def register_question(self, pipeline_id: str, question: PendingQuestion) -> None:
         """Register a pending question for a pipeline."""
@@ -274,7 +331,8 @@ class PipelineExecutor:
         ]
         for pid in to_remove:
             self.cancel_events.pop(pid, None)
-            self.event_queues.pop(pid, None)
+            self.event_history.pop(pid, None)
+            self.event_subscribers.pop(pid, None)
             self.questions.pop(pid, None)
             del self.active_pipelines[pid]
         return len(to_remove)
