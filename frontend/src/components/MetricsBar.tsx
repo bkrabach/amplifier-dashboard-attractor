@@ -62,6 +62,12 @@ export default function MetricsBar({ state }: MetricsBarProps) {
       <Metric label="Progress" value={`${state.nodes_completed}/${state.nodes_total}`} />
       <Metric label="Elapsed" value={formatDuration(state.total_elapsed_ms)} />
       <Metric label="Tokens" value={formatTokens(state.total_tokens_in + state.total_tokens_out)} />
+      {state.total_tokens_cached > 0 && (
+        <Metric label="Cached" value={formatTokens(state.total_tokens_cached)} />
+      )}
+      {state.total_tokens_reasoning > 0 && (
+        <Metric label="Reasoning" value={formatTokens(state.total_tokens_reasoning)} />
+      )}
       <Metric label="LLM Calls" value={String(state.total_llm_calls)} />
       {state.errors.length > 0 && (
         <Metric label="Errors" value={String(state.errors.length)} color="var(--state-failed)" />
