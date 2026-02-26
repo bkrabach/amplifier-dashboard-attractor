@@ -64,7 +64,7 @@ export default function DetailPanel({
   contextId,
   prompt,
   response,
-  edgeDecisions: _edgeDecisions,
+  edgeDecisions,
   detailLoading,
   timing: _timing,
   loopIterations: _loopIterations,
@@ -231,6 +231,34 @@ export default function DetailPanel({
           Response not available in this data source mode
         </div>
       ) : null}
+
+      {/* Edge Routing */}
+      {edgeDecisions && edgeDecisions.length > 0 && (
+        <div style={{ marginTop: "var(--space-md)" }}>
+          <h3 style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "var(--space-xs)" }}>
+            Edge Routing
+          </h3>
+          {edgeDecisions.map((d, i) => (
+            <div key={i} style={{
+              fontSize: "0.8rem",
+              fontFamily: "var(--font-mono)",
+              background: "var(--bg-tertiary)",
+              padding: "var(--space-xs) var(--space-sm)",
+              borderRadius: "var(--radius-sm)",
+              marginBottom: "var(--space-xs)",
+            }}>
+              <div style={{ color: "var(--text-primary)" }}>
+                → {d.selected_edge.label || d.selected_edge.to_node || "default"}
+              </div>
+              {d.reason && d.reason !== "default" && (
+                <div style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
+                  {d.reason}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
