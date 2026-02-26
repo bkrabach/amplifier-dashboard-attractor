@@ -13,13 +13,13 @@ from __future__ import annotations
 
 import argparse
 import os
+import mimetypes
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from amplifier_dashboard_attractor.routes.pipelines import router as pipelines_router
 from amplifier_dashboard_attractor.routes.submissions import (
@@ -107,19 +107,19 @@ def create_app(
     # Serve frontend static files if the dist/ directory exists
     frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
     if frontend_dist.is_dir():
-        # SPA catch-all: serve index.html for any client-side route that doesn't
-        # match an API route or a static asset request (file extension check).
-        # Must be registered BEFORE the StaticFiles mount so FastAPI checks the
-        # already-registered API routes first, then falls back here.
+        # SPA catch-all: handles both static asset serving and client-side routes.
+        # API routes (/api/*) are already registered above and take priority.
+        # Strategy: if the path maps to a real file in dist/, serve it directly
+        # (FileResponse with correct content-type). Otherwise serve index.html so
+        # React Router can handle the client-side route.
         @app.get("/{full_path:path}")
         async def spa_fallback(full_path: str):
-            # Requests for static assets have a file extension — let StaticFiles
-            # (mounted below) handle them; raise 404 if not found there.
-            if "." in full_path.split("/")[-1]:
-                raise HTTPException(status_code=404)
+            file_path = frontend_dist / full_path
+            if file_path.is_file():
+                media_type = mimetypes.guess_type(str(file_path))[0]
+                return FileResponse(str(file_path), media_type=media_type)
+            # Not a static file — serve index.html for SPA client-side routing
             return FileResponse(str(frontend_dist / "index.html"))
-
-        app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="spa")
 
     return app
 
