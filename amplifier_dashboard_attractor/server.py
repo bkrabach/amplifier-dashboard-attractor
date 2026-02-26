@@ -16,8 +16,9 @@ import os
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from amplifier_dashboard_attractor.routes.pipelines import router as pipelines_router
@@ -106,6 +107,18 @@ def create_app(
     # Serve frontend static files if the dist/ directory exists
     frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
     if frontend_dist.is_dir():
+        # SPA catch-all: serve index.html for any client-side route that doesn't
+        # match an API route or a static asset request (file extension check).
+        # Must be registered BEFORE the StaticFiles mount so FastAPI checks the
+        # already-registered API routes first, then falls back here.
+        @app.get("/{full_path:path}")
+        async def spa_fallback(full_path: str):
+            # Requests for static assets have a file extension — let StaticFiles
+            # (mounted below) handle them; raise 404 if not found there.
+            if "." in full_path.split("/")[-1]:
+                raise HTTPException(status_code=404)
+            return FileResponse(str(frontend_dist / "index.html"))
+
         app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="spa")
 
     return app
