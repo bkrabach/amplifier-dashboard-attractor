@@ -60,6 +60,10 @@ export async function layoutPipeline(
   let dotNodes: string[] = [];
   let dotEdges: Array<{ source: string; target: string; label: string }> = [];
 
+  if (!pipelineState.dot_source) {
+    console.warn("[dotLayout] No dot_source available, using fallback topology");
+  }
+
   try {
     const dotGraph = fromDot(pipelineState.dot_source);
 
@@ -81,7 +85,8 @@ export async function layoutPipeline(
         });
       }
     }
-  } catch {
+  } catch (err) {
+    console.error("[dotLayout] Failed to parse DOT source, falling back to state edges:", err);
     // Fallback: extract topology from PipelineRunState directly
     // (in case ts-graphviz can't parse this particular DOT format)
     dotNodes = Object.keys(pipelineState.nodes);
