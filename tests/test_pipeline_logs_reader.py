@@ -266,6 +266,17 @@ def test_derive_status_success_mid_run_is_running() -> None:
     assert _derive_status(cp) == "running"
 
 
+def test_derive_status_running_when_current_node_active() -> None:
+    """Pipelines with an active current_node should be 'running' even if all tracked nodes succeeded."""
+    cp = {
+        "current_node": "Plan",
+        "context": {},
+        "completed_nodes": {"Start": "success", "Explore": "success"},
+        "node_outcomes": {"Start": {"status": "success"}, "Explore": {"status": "success"}},
+    }
+    assert _derive_status(cp) == "running"
+
+
 # ---------------------------------------------------------------------------
 # _build_pipeline_state
 # ---------------------------------------------------------------------------

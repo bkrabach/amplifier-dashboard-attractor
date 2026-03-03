@@ -88,7 +88,7 @@ def _derive_status(checkpoint: dict[str, Any]) -> str:
     # Detect completion when all nodes with outcomes have completed successfully
     # and current_node is a terminal node (but not literally "done").
     completed = checkpoint.get("completed_nodes", {})
-    if outcomes and len(completed) == len(outcomes):
+    if not current and outcomes and len(completed) == len(outcomes):
         # All tracked nodes completed — check if all succeeded
         all_ok = all(
             (isinstance(info, dict) and info.get("status") in ("success", None))
